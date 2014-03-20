@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+import logging
+
+import argh
+from argh.decorators import arg, wrap_errors
+from argh.exceptions import CommandError
+
+from subtitledownloader import __version__
+from subtitledownloader.subtitledownloader import (SubtitleDownloader,
+                                                   SubtitleDownloaderError)
+from subtitledownloader.lib import setup_log
+
+
+@arg('-a', '--search-all', default=False, help='Search all files')
+@arg('-c', '--cleanup', default=False, help='Remove leftover subs files')
+@arg('-d', '--debug', default=False, help='Output debug info')
+@arg('-s', '--silent', default=False, help='Disable console output')
+@arg('-l', '--log', default=None, help='Log to file')
+@arg('-v', '--version', action='version', version=__version__)
+@wrap_errors(processor=lambda excinfo: 'ERROR: {0}'.format(excinfo))
+def main(search_dir, search_all=False, cleanup=False, debug=False,
+         silent=False, log=None, version=False):
+    """Find all media files (mkv, avi) and search for subtitles if no subtitle
+    exists already. An english subtitles will be downloaded from Subscene if a
+    match could be found. When downloaded the subtitle will be extracted and
+    renamed to match the media file. By default only media files modified in
+    the last week will be searched if -a isn't activated."""
+
+    # Setup logging
+    log = setup_log('subtitledownloader',
+                    console_output=True,
+                    log_file=log,
+                    level=logging.INFO)
+
+    # Debug logging
+    if debug:
+        log.setLevel(logging.DEBUG)
+
+    # Silent, only output to log
+    if silent:
+        log.propagate = False
+
+    try:
+        subtitle_downloader = SubtitleDownloader(search_dir, search_all)
+        subtitle_downloader.scan_search()
+
+        if cleanup:
+            subtitle_downloader.cleanup()
+    except SubtitleDownloaderError, e:
+        raise CommandError(e.message)
+
+if __name__ == '__main__':
+    try:
+        argh.dispatch_command(main)
+    except KeyboardInterrupt:
+        print('Exiting...')
